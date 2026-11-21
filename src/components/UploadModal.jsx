@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import CloseIcon from '@mui/icons-material/Close'
 import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile'
+import Alert from '@mui/material/Alert'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
 import Checkbox from '@mui/material/Checkbox'
@@ -31,22 +32,20 @@ function formatBytes(n) {
 export default function UploadModal({ item, remaining, suggestions, carry, onSave, onSkip, onClose }) {
   const theme = useTheme()
   const fullScreen = useMediaQuery(theme.breakpoints.down('sm'), { noSsr: true })
-  const [tags, setTags] = useState(carry?.tags ?? [])
+  const [tags, setTags] = useState(item.tags ?? carry?.tags ?? [])
   const [comment, setComment] = useState(item.comment || '')
   const [keepForNext, setKeepForNext] = useState(Boolean(carry))
   const [saving, setSaving] = useState(false)
   const previewRef = useObjectUrlRef(item.file)
   const isImage = item.file.type?.startsWith('image/')
 
-  const save = async (e) => {
+  // onSave hands the upload off to the background and advances the queue immediately;
+  // `saving` only guards against a double submit before this modal unmounts.
+  const save = (e) => {
     e?.preventDefault()
     if (saving) return
     setSaving(true)
-    try {
-      await onSave({ tags, comment, keepForNext })
-    } catch {
-      setSaving(false) // stay open so the user can retry
-    }
+    onSave({ tags, comment, keepForNext })
   }
 
   const close = () => !saving && onClose()
@@ -85,6 +84,7 @@ export default function UploadModal({ item, remaining, suggestions, carry, onSav
 
       <DialogContent dividers>
         <Stack spacing={2}>
+          {item.error && <Alert severity="error">Upload failed: {item.error}. Tap Save to retry.</Alert>}
           <Box sx={{ display: 'flex', justifyContent: 'center', overflow: 'hidden', borderRadius: 1, bgcolor: 'action.hover' }}>
             {isImage ? (
               <Box

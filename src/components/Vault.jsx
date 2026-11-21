@@ -39,7 +39,8 @@ const gridSx = {
 export default function Vault({ auth }) {
   const vault = useVaultFiles()
   const [filters, updateFilters, resetFilters] = useFilters()
-  const [queue, setQueue] = useState([]) // { id, file, comment }[]
+  const [queue, setQueue] = useState([]) // { id, file, comment, name?, tags?, error? }[]
+  const [uploading, setUploading] = useState(0) // background uploads in flight
   const [carry, setCarry] = useState(null) // { tags } carried to next queued file
   const [editingId, setEditingId] = useState(null)
   const [toasts, setToasts] = useState([])
@@ -86,24 +87,37 @@ export default function Vault({ auth }) {
     setCarry(remaining > 0 ? nextCarry : null)
   }
 
-  const handleSave = async ({ tags, comment, keepForNext }) => {
+  // Uploads run in the background so the capture modal closes instantly. A failed upload
+  // goes back into the queue with its tags/comment so nothing is lost.
+  const handleSave = ({ tags, comment, keepForNext }) => {
     const item = queue[0]
+    const name = item.name || chooseFileName(item.file)
     const tagValue = serializeTags(tags)
     const appProperties = { deviceLabel: detectDeviceLabel() }
     if (tagValue) appProperties.tags = tagValue
-    try {
-      await vault.upload(item.file, {
-        name: chooseFileName(item.file),
-        description: comment.trim(),
-        appProperties,
+
+    advanceQueue(keepForNext ? { tags } : null)
+    setUploading((n) => n + 1)
+    vault
+      .upload(item.file, { name, description: comment.trim(), appProperties })
+      .then(() => notify('Saved to SmartDrive', 'success'))
+      .catch((err) => {
+        notify(`Upload failed: ${err.message}`, 'error')
+        setQueue((q) => [...q, { ...item, id: crypto.randomUUID(), name, tags, comment, error: err.message }])
       })
-      notify('Saved to SmartDrive', 'success')
-      advanceQueue(keepForNext ? { tags } : null)
-    } catch (err) {
-      notify(`Upload failed: ${err.message}`, 'error')
-      throw err
-    }
+      .finally(() => setUploading((n) => n - 1))
   }
+
+  // Warn before closing the tab while uploads are still in flight.
+  useEffect(() => {
+    if (!uploading) return
+    const onBeforeUnload = (e) => {
+      e.preventDefault()
+      e.returnValue = ''
+    }
+    window.addEventListener('beforeunload', onBeforeUnload)
+    return () => window.removeEventListener('beforeunload', onBeforeUnload)
+  }, [uploading])
 
   const closeQueue = useCallback(() => {
     setQueue([])
@@ -129,6 +143,7 @@ export default function Vault({ auth }) {
       <Header
         count={vault.files.length}
         loading={vault.loading}
+        uploading={uploading}
         onRefresh={vault.refresh}
         onSignOut={auth.signOut}
         expired={auth.status === 'expired'}

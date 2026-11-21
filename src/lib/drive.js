@@ -8,13 +8,14 @@ const ROOT_KEY = 'smartdrive.rootFolderId'
 
 export const ROOT_FOLDER_NAME = 'SmartDrive'
 export const FILE_FIELDS =
-  'id,name,mimeType,thumbnailLink,webViewLink,createdTime,modifiedTime,description,appProperties'
+  'id,name,mimeType,thumbnailLink,webViewLink,createdTime,modifiedTime,headRevisionId,md5Checksum,description,appProperties'
 
 /**
  * @typedef {{ tags?: string, deviceLabel?: string }} AppProps
  * @typedef {{
  *   id: string, name: string, mimeType: string, thumbnailLink?: string, webViewLink?: string,
- *   createdTime: string, modifiedTime?: string, description?: string, appProperties?: AppProps
+ *   createdTime: string, modifiedTime?: string, headRevisionId?: string, md5Checksum?: string,
+ *   description?: string, appProperties?: AppProps
  * }} VaultFile
  */
 
@@ -67,6 +68,11 @@ function cacheRootId(id) {
   } catch {
     /* ignore */
   }
+}
+
+/** The last known root folder id (unvalidated), or null. Lets listing start before validation finishes. */
+export function getCachedRootId() {
+  return readCachedRootId()
 }
 
 let rootPromise = null
@@ -125,22 +131,30 @@ async function resolveRootFolder() {
   return created.id
 }
 
-/** Lists every non-trashed file in the root folder (follows pagination). */
-export async function listFiles(rootId) {
+/**
+ * Lists every non-trashed file in the root folder (follows pagination).
+ * @param {string} rootId
+ * @param {(files: VaultFile[], first: boolean) => void} [onPage] called as each page arrives (progressive rendering)
+ */
+export async function listFiles(rootId, onPage) {
   /** @type {VaultFile[]} */
   const all = []
   let pageToken = ''
+  let first = true
   do {
     const params = new URLSearchParams({
       q: `'${q(rootId)}' in parents and trashed = false and mimeType != '${FOLDER_MIME}'`,
       fields: `nextPageToken,files(${FILE_FIELDS})`,
       orderBy: 'createdTime desc',
-      pageSize: '200',
+      pageSize: '1000',
       spaces: 'drive',
     })
     if (pageToken) params.set('pageToken', pageToken)
     const page = await driveFetch(`${API}/files?${params}`).then(json)
-    all.push(...(page.files || []))
+    const files = page.files || []
+    all.push(...files)
+    onPage?.(files, first)
+    first = false
     pageToken = page.nextPageToken || ''
   } while (pageToken)
   return all
@@ -199,9 +213,13 @@ export async function replaceContent(id, blob) {
   }).then(json)
 }
 
-/** Downloads the file content as a Blob (authenticated). */
-export async function downloadBlob(id) {
-  const res = await driveFetch(`${API}/files/${id}?alt=media`)
+/**
+ * Downloads the file content as a Blob (authenticated).
+ * @param {string} id
+ * @param {{ signal?: AbortSignal }} [options]
+ */
+export async function downloadBlob(id, { signal } = {}) {
+  const res = await driveFetch(`${API}/files/${id}?alt=media`, { signal })
   return res.blob()
 }
 

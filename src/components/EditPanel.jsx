@@ -13,8 +13,9 @@ import Skeleton from '@mui/material/Skeleton'
 import Stack from '@mui/material/Stack'
 import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
-import { loadFileBlob, useAuthedImage } from '../hooks/useAuthedImage.js'
+import { useAuthedImage } from '../hooks/useAuthedImage.js'
 import { parseTags } from '../lib/tags.js'
+import { loadOriginal } from '../lib/thumbs.js'
 import TagInput from './TagInput.jsx'
 
 const dateFmt = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' })
@@ -41,7 +42,12 @@ export default function EditPanel({ file, suggestions, onSave, onReplace, onTras
   const [comment, setComment] = useState(file.description || '')
   const [busy, setBusy] = useState(null) // 'save' | 'replace' | 'trash' | 'download' | null
   const replaceInput = useRef(null)
-  const { src, error, isImage } = useAuthedImage(file, { lazy: false })
+  // Show the cached thumbnail instantly, then swap in the full-resolution original.
+  const thumb = useAuthedImage(file, { lazy: false, variant: 'thumb' })
+  const full = useAuthedImage(file, { lazy: false, variant: 'full' })
+  const { isImage } = full
+  const src = full.src || thumb.src
+  const error = full.error && !thumb.src ? full.error : null
 
   const dirty = tags.join(',') !== initialTags.join(',') || comment !== (file.description || '')
 
@@ -78,7 +84,7 @@ export default function EditPanel({ file, suggestions, onSave, onReplace, onTras
 
   const download = () =>
     run('download', async () => {
-      const blob = await loadFileBlob(file.id, file.modifiedTime)
+      const blob = await loadOriginal(file)
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url

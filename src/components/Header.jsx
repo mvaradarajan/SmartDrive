@@ -11,7 +11,7 @@ import Toolbar from '@mui/material/Toolbar'
 import Tooltip from '@mui/material/Tooltip'
 import Typography from '@mui/material/Typography'
 
-export default function Header({ count, loading, onRefresh, onSignOut, expired, onReconnect }) {
+export default function Header({ count, loading, uploading = 0, onRefresh, onSignOut, expired, onReconnect }) {
   return (
     <AppBar
       position="sticky"
@@ -26,8 +26,17 @@ export default function Header({ count, loading, onRefresh, onSignOut, expired, 
             <Typography variant="h6" component="h1" sx={{ fontWeight: 600, lineHeight: 1.2 }}>
               SmartDrive
             </Typography>
-            <Typography variant="caption" color="text.secondary">
-              {loading ? 'Loading…' : `${count} file${count === 1 ? '' : 's'}`}
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+              {uploading > 0 ? (
+                <>
+                  <CircularProgress size={10} thickness={6} color="inherit" />
+                  Uploading {uploading}…
+                </>
+              ) : loading ? (
+                'Loading…'
+              ) : (
+                `${count} file${count === 1 ? '' : 's'}`
+              )}
             </Typography>
           </Box>
 
