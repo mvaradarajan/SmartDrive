@@ -29,6 +29,13 @@ function Count({ children }) {
  */
 export default function FilterBar({ filters, onChange, onReset, tagCounts, untaggedCount }) {
   const [text, setText] = useState(filters.search)
+  const [syncedSearch, setSyncedSearch] = useState(filters.search)
+
+  // Follow external changes to the search (e.g. "Clear filters" in the no-results state).
+  if (filters.search !== syncedSearch) {
+    setSyncedSearch(filters.search)
+    setText(filters.search)
+  }
 
   // Debounce the search box into filter state.
   useEffect(() => {

@@ -1,7 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import CloudUploadIcon from '@mui/icons-material/CloudUpload'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Alert from '@mui/material/Alert'
-import Avatar from '@mui/material/Avatar'
 import Backdrop from '@mui/material/Backdrop'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
@@ -18,6 +16,7 @@ import { chooseFileName } from '../lib/filename.js'
 import { takeSharedPayload } from '../lib/shareInbox.js'
 import { parseTags, serializeTags } from '../lib/tags.js'
 import EditPanel from './EditPanel.jsx'
+import { FirstRunState, NoMatchState } from './EmptyStates.jsx'
 import FileCard from './FileCard.jsx'
 import FilterBar from './FilterBar.jsx'
 import Header from './Header.jsx'
@@ -44,6 +43,7 @@ export default function Vault({ auth }) {
   const [carry, setCarry] = useState(null) // { tags } carried to next queued file
   const [editingId, setEditingId] = useState(null)
   const [toasts, setToasts] = useState([])
+  const captureRef = useRef(null)
 
   // --- toasts ---------------------------------------------------------------
   const dismiss = useCallback((id) => setToasts((t) => t.filter((x) => x.id !== id)), [])
@@ -96,11 +96,15 @@ export default function Vault({ auth }) {
     const appProperties = { deviceLabel: detectDeviceLabel() }
     if (tagValue) appProperties.tags = tagValue
 
+    // On the very first save, point out where an untagged file ends up so the inbox isn't a mystery.
+    const savedMessage =
+      !tagValue && vault.files.length === 0 ? 'Saved. You’ll find it under Untagged until you add tags.' : 'Saved to SmartDrive'
+
     advanceQueue(keepForNext ? { tags } : null)
     setUploading((n) => n + 1)
     vault
       .upload(item.file, { name, description: comment.trim(), appProperties })
-      .then(() => notify('Saved to SmartDrive', 'success'))
+      .then(() => notify(savedMessage, 'success'))
       .catch((err) => {
         notify(`Upload failed: ${err.message}`, 'error')
         setQueue((q) => [...q, { ...item, id: crypto.randomUUID(), name, tags, comment, error: err.message }])
@@ -153,13 +157,16 @@ export default function Vault({ auth }) {
       {/* Bottom padding keeps the last row clear of the upload button. */}
       <Container component="main" maxWidth="xl" sx={{ pt: { xs: 2, sm: 3 }, pb: 'calc(96px + env(safe-area-inset-bottom))' }}>
         <Stack spacing={2.5}>
-          <FilterBar
-            filters={filters}
-            onChange={updateFilters}
-            onReset={resetFilters}
-            tagCounts={tagCounts}
-            untaggedCount={untaggedCount}
-          />
+          {/* Search and tags mean nothing until there is something to find. */}
+          {vault.files.length > 0 && (
+            <FilterBar
+              filters={filters}
+              onChange={updateFilters}
+              onReset={resetFilters}
+              tagCounts={tagCounts}
+              untaggedCount={untaggedCount}
+            />
+          )}
 
           {vault.error && (
             <Alert
@@ -181,11 +188,9 @@ export default function Vault({ auth }) {
               ))}
             </Box>
           ) : vault.files.length === 0 && !vault.error ? (
-            <EmptyState />
+            <FirstRunState onAction={(key) => captureRef.current?.run(key)} />
           ) : visible.length === 0 ? (
-            <Typography color="text.secondary" sx={{ py: 8, textAlign: 'center' }}>
-              No files match these filters.
-            </Typography>
+            <NoMatchState filters={filters} onReset={resetFilters} />
           ) : (
             <Box sx={gridSx}>
               {visible.map((file) => (
@@ -203,7 +208,7 @@ export default function Vault({ auth }) {
         </Stack>
       </Container>
 
-      <UploadSpeedDial onFiles={enqueue} onError={(message) => notify(message, 'error')} />
+      <UploadSpeedDial ref={captureRef} onFiles={enqueue} onError={(message) => notify(message, 'error')} />
 
       {editing && (
         <EditPanel
@@ -259,31 +264,5 @@ export default function Vault({ auth }) {
 
       <Toasts toasts={toasts} onDismiss={dismiss} />
     </Box>
-  )
-}
-
-const kbdSx = { border: 1, borderColor: 'divider', borderRadius: 0.5, px: 0.5, fontFamily: 'inherit', fontSize: '0.85em' }
-
-function EmptyState() {
-  return (
-    <Stack spacing={1.5} sx={{ alignItems: 'center', textAlign: 'center', py: 8, mx: 'auto', maxWidth: 420 }}>
-      <Avatar variant="rounded" sx={{ width: 64, height: 64, bgcolor: 'primary.main', borderRadius: 3 }}>
-        <CloudUploadIcon fontSize="large" />
-      </Avatar>
-      <Typography variant="h6" component="h2">
-        Your SmartDrive is empty
-      </Typography>
-      <Typography variant="body2" color="text.secondary">
-        Paste a screenshot with{' '}
-        <Box component="kbd" sx={kbdSx}>
-          Ctrl
-        </Box>
-        +
-        <Box component="kbd" sx={kbdSx}>
-          V
-        </Box>
-        , drag files here, use the upload button in the corner, or share to SmartDrive from your phone’s share sheet.
-      </Typography>
-    </Stack>
   )
 }

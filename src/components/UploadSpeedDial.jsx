@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useImperativeHandle, useRef, useState } from 'react'
 import CloseIcon from '@mui/icons-material/Close'
 import CloudUploadIcon from '@mui/icons-material/CloudUpload'
 import PhotoCameraIcon from '@mui/icons-material/PhotoCamera'
@@ -15,9 +15,14 @@ const hiddenInput = { display: 'none' }
 
 /**
  * Bottom-right upload menu: Screenshot (desktop only), Camera, Upload document.
- * @param {{ onFiles: (files: File[]) => void, onError: (message: string) => void }} props
+ * `ref.current.run(key)` triggers an action from elsewhere (e.g. the empty-state buttons).
+ * @param {{
+ *   onFiles: (files: File[]) => void,
+ *   onError: (message: string) => void,
+ *   ref?: import('react').Ref<{ run: (key: 'screenshot' | 'camera' | 'document') => void }>,
+ * }} props
  */
-export default function UploadSpeedDial({ onFiles, onError }) {
+export default function UploadSpeedDial({ onFiles, onError, ref }) {
   const [open, setOpen] = useState(false)
   const [cameraOpen, setCameraOpen] = useState(false)
   const fileInput = useRef(null)
@@ -62,6 +67,8 @@ export default function UploadSpeedDial({ onFiles, onError }) {
     { key: 'camera', label: 'Camera', icon: <PhotoCameraIcon />, onClick: camera },
     { key: 'document', label: 'Upload document', icon: <UploadFileIcon />, onClick: pickDocument },
   ].filter(Boolean)
+
+  useImperativeHandle(ref, () => ({ run: (key) => actions.find((a) => a.key === key)?.onClick() }))
 
   return (
     <>
