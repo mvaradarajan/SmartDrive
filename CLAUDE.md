@@ -6,6 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 A personal, serverless Progressive Web App (PWA) for capturing, uploading, organizing, and maintaining screenshots and files with tags and comments, using **Google Drive** as the sole storage and metadata backend.
 
 ## Architecture & Tech Stack
+See [ARCHITECTURE.md](ARCHITECTURE.md) for the full design, data flows, and a file-by-file guide.
+
 - **Frontend:** Vite + React + JavaScript (JSX, no TypeScript) + Material UI (MUI v7, Emotion; theme in `src/theme.js`, icons from `@mui/icons-material`) (100% client-side SPA/PWA, zero custom backend).
 - **Storage & Database:** Google Drive REST API v3.
 - **Auth:** Google Identity Services (GIS) OAuth 2.0 (client-side token flow).
